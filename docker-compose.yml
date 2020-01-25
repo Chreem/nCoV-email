@@ -1,0 +1,68 @@
+version: '3'
+services:
+  nginx:
+    image: nginx
+    ports:
+      - 80:80
+    networks:
+      frontend:
+        ipv4_address: 192.168.100.2
+    volumes:
+      - ./nginx/config:/etc/nginx/conf.d
+      - ./static/dist:/var/www
+
+  ############################
+  # node
+  node:
+    image: node
+    working_dir: /root/node
+    environment:
+      TZ: Asia/Shanghai
+    command:
+      - /bin/sh
+      - -c
+      - |
+        npm i
+        node index.js
+    expose:
+      - 4000
+    networks:
+      frontend:
+        ipv4_address: 192.168.100.3
+    volumes:
+      - ./node:/root/node
+
+  ############################
+  # api
+  mysql:
+    image: mysql
+    command: mysqld --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_DATABASE: ncov
+      MYSQL_USER: ncov
+      MYSQL_PASSWORD: P@ssw0rd
+      MYSQL_ROOT_PASSWORD: P@ssw0rd
+    ports:
+      - 3306:3306
+    networks:
+      frontend:
+        ipv4_address: 192.168.100.4
+    volumes:
+      - ./api/mysql/data:/var/lib/mysql
+      - ./api/mysql/config:/etc/mysql
+
+  redis:
+    image: redis
+    ports:
+      - 6379:6379
+    networks:
+      frontend:
+        ipv4_address: 192.168.100.5
+
+networks:
+  frontend:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 192.168.100.0/24
