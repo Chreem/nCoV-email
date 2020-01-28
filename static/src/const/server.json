@@ -1,3 +1,5 @@
 {
-  "authUrl": "http://auth.chreem.club/auth"
+  "authUrl": "http://auth.chreem.club/auth",
+  "provinceUrl": "http://auth.chreem.club/province",
+  "changeUrl": "http://auth.chreem.club/change"
 }

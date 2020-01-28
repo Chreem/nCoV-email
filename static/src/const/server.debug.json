@@ -1,0 +1,5 @@
+{
+  "authUrl": "http://auth.chreem.com/auth",
+  "provinceUrl": "http://auth.chreem.com/province",
+  "changeUrl": "http://auth.chreem.com/change"
+}

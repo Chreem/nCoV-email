@@ -22,8 +22,6 @@ module.exports = ({ from, receiver, title, body }) => new Promise((r, j) => {
     };
 
     transporter.sendMail(mailOption, (err, info) => {
-        console.log(info);
-
         if (err) return j(err);
         return r(info);
     });

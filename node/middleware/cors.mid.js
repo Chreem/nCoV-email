@@ -2,6 +2,7 @@ const whiteList = [
     'http://localhost',
     'http://127.0.0.1',
     'http://dev.chreem.com',
+    'http://mail.chreem.club',
 ];
 
 module.exports = (req, res, next) => {

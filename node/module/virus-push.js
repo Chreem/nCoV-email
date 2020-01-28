@@ -5,7 +5,7 @@ const getHtml = require('../service/get-html')
     , sendEmail = require('../service/send-email')
     , { selectAll, select, insert } = require('../service/mysql')
     ;
-const { AUTH_SERVER } = require('../config');
+const { AUTH_SERVER, IS_DEBUG } = require('../config');
 
 
 const parseHtmlString = str => {
@@ -20,7 +20,7 @@ const parseHtmlString = str => {
     return window;
 }
 
-const formatContent = ({ title, summary, infoSource, sourceUrl, pubDate }, { countRemark, imgUrl, dailyPic }, email) => {
+const formatContent = ({ title, summary, infoSource, sourceUrl, pubDate }, { confirmedCount, suspectedCount, curedCount, deadCount, dailyPic }, email) => {
     const unsubscribe = `${AUTH_SERVER}/unsubscribe?email=${encodeURIComponent(email)}`;
     pubDate = parseInt(pubDate) || (new Date().getTime());
     return `<html>
@@ -29,13 +29,10 @@ const formatContent = ({ title, summary, infoSource, sourceUrl, pubDate }, { cou
         <div>${summary}</div>
         <div>消息来源：<a target="_blank" href="${sourceUrl}">${infoSource}</a></div>
 
-        <div>当前人数：<span>${countRemark}</span></div>
+        <div>当前人数：<span>全国 确诊${confirmedCount}，疑似${suspectedCount}，死亡${deadCount}，治愈${curedCount}</span></div>
 
         <div>数据来源：<a target="_blank" href="https://3g.dxy.cn/newh5/view/pneumonia">丁香园</a></div>
         <div>点此退订：<a target="_blank" href="${unsubscribe}">${unsubscribe}</a></div>
-        <div>
-            <img src="${imgUrl}" style="width: 100%"/>
-        </div>
         <div>
             <img src="${dailyPic}" style="width: 100%"/>
         </div>
@@ -47,7 +44,8 @@ module.exports = async () => {
     const news = {};
     const storedNews = await selectAll('news');
     storedNews.map(n => news[n.newsId] = n);
-    const timer = new Timer({ apm: 1 / 10, ipm: 1 / 10, normalCallback: true });
+    const interval = IS_DEBUG ? 10 : 1 / 10;
+    const timer = new Timer({ apm: interval, ipm: interval, normalCallback: true });
     timer.startListen(async () => {
         try {
             const resultStr = await getHtml('https://3g.dxy.cn/newh5/view/pneumonia');
@@ -62,21 +60,31 @@ module.exports = async () => {
                 news[id] = item;
                 return item;
             });
+            for (let i = 0, len = newItem.length; i < len; i++) { await insert('news', newItem[i]); }
 
             // 获取订阅邮箱
+            // if (IS_DEBUG) return;
             const emailsRow = await select('email', { push: '1' }) || [];
             if (emailsRow.length <= 0) return console.log('暂无订阅用户');
-            const emails = emailsRow.map(item => item.email);
 
             // 将每条新的新闻单独发送给每个订阅用户
             for (let i = 0, len = newItem.length; i < len; i++) {
-                await insert('news', newItem[i]);
-                for (let j = 0, elen = emails.length; j < elen; j++) {
+                for (let j = 0, elen = emailsRow.length; j < elen; j++) {
+                    const emailTarget = emailsRow[j];
+                    // 关注省为0则发送所有新闻，否则只发出关注的新闻
+                    if (['', '0'].indexOf(emailTarget.focusProvinceId) < 0) {
+                        // 当前关注者不感兴趣则跳过该关注者
+                        const focus = emailTarget.focusProvinceId.split(',');
+                        if (focus.indexOf(newItem[i].provinceId) < 0) {
+                            // IS_DEBUG && console.log(`已跳过${newItem[i].provinceId}=>${newItem[i].title}，关注者聚焦省份id: ${emailTarget.focusProvinceId}`);
+                            continue;
+                        }
+                    }
                     await sendEmail({
                         from: '疫情推送',
-                        receiver: [emails[j]],
+                        receiver: [emailTarget.email],
                         title: `【疫情推送】${newItem[i].title}`,
-                        body: formatContent(newItem[i], result.getStatisticsService, emails[j])
+                        body: formatContent(newItem[i], result.getStatisticsService, emailTarget.email)
                     });
                 }
             }

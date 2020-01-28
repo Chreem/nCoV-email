@@ -19,29 +19,29 @@ function rangeSql(range) {
     return sql;
 }
 
-module.exports = {
-    selectAll: (table) => new Promise((r, j) => {
-        pool.getConnection((err, connect) => {
+function sqlCommand(sql, r, j) {
+    pool.getConnection((err, connect) => {
+        connect.connect();
+        connect.query(sql, (err, result) => {
             if (err) return j(err.message);
-            connect.connect();
-            connect.query(`select * from ${table}`, (err, result) => {
-                if (err) return j(err.message);
-                return r(result);
-            });
-            connect.release();
+            return r(result);
         });
+        connect.release();
+    });
+}
+
+module.exports = {
+    originSql: (sql) => new Promise((r, j) => {
+        sqlCommand(sql, r, j);
+    }),
+
+    selectAll: (table) => new Promise((r, j) => {
+        sqlCommand(`select * from ${table}`, r, j);
     }),
 
     select: (table, range) => new Promise((r, j) => {
         let sql = `select * from ${table} ${rangeSql(range)}`;
-        pool.getConnection((err, connect) => {
-            connect.connect();
-            connect.query(sql, (err, result) => {
-                if (err) return j(err.message);
-                return r(result);
-            });
-            connect.release();
-        });
+        sqlCommand(sql, r, j);
     }),
 
     insert: (table, data) => new Promise((r, j) => {
@@ -53,15 +53,7 @@ module.exports = {
         });
         key = key.slice(0, -1);
         let sql = `insert into ${table}(${key}) values(${val.toString()})`
-
-        pool.getConnection((err, connect) => {
-            connect.connect();
-            connect.query(sql, (err, result) => {
-                if (err) return j(err.message);
-                return r(result);
-            });
-            connect.release();
-        });
+        sqlCommand(sql, r, j);
     }),
 
     update: (table, range, data) => new Promise((r, j) => {
@@ -81,5 +73,5 @@ module.exports = {
             });
             connect.release();
         });
-    })
+    }),
 }
