@@ -27,7 +27,7 @@ class Timer {
     startListen = callback => {
         if (!callback) throw new Error('callback is required');
         const { start, end, ipm, log, normalCallback } = this.config;
-        this.nItv = setInterval(() => {
+        const intervalCallback = () => {
             if (this.active) return;
             const today = moment().format('YYYY-MM-DD');
             let startTime = new Date(`${today} ${start}`).getTime();
@@ -38,7 +38,9 @@ class Timer {
             log && console.log('detect');
             normalCallback && callback();
             if (startTime <= now && now <= endTime) this.start(callback);
-        }, 1000 * 60 / ipm);
+        };
+        intervalCallback();
+        this.nItv = setInterval(intervalCallback, 1000 * 60 / ipm);
     };
 
     start = callback => {

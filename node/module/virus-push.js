@@ -4,6 +4,7 @@ const getHtml = require('../service/get-html')
     , Timer = require('../service/timer')
     , sendEmail = require('../service/send-email')
     , { selectAll, select, insert } = require('../service/mysql')
+    , { set } = require('../service/redis')
     ;
 const { AUTH_SERVER, IS_DEBUG } = require('../config');
 
@@ -16,6 +17,8 @@ const parseHtmlString = str => {
         eval(getTimelineService.html());
         const getStatisticsService = $('#getStatisticsService');
         eval(getStatisticsService.html());
+        const getAreaStat = $('#getAreaStat');
+        eval(getAreaStat.html());
     } catch (e) { }
     return window;
 }
@@ -44,12 +47,24 @@ module.exports = async () => {
     const news = {};
     const storedNews = await selectAll('news');
     storedNews.map(n => news[n.newsId] = n);
-    const interval = IS_DEBUG ? 10 : 1 / 10;
+    const interval = IS_DEBUG ? 10 : 1 / 15;
     const timer = new Timer({ apm: interval, ipm: interval, normalCallback: true });
     timer.startListen(async () => {
         try {
             const resultStr = await getHtml('https://3g.dxy.cn/newh5/view/pneumonia');
             const result = parseHtmlString(resultStr);
+
+            // 更新患者，放入redis，超时时间为检测时间*2
+            const peopleExires = 60 / interval * 2;
+            const areaData = result.getAreaStat || [];
+            const areaResult = [];
+            areaData.map(({ provinceName, confirmedCount, suspectedCount, curedCount, deadCount, cities }) => {
+                areaResult.push({ provinceName, confirmedCount, suspectedCount, curedCount, deadCount });
+                cities.map(({ cityName, ...other }) => {
+                    areaResult.push({ provinceName: `${cityName}市`, ...other });
+                });
+            });
+            await set('AreaData', JSON.stringify(areaResult), peopleExires);
 
             // 获取未发送过的新闻
             const timeline = result.getTimelineService || [];
