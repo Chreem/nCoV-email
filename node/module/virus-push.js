@@ -3,10 +3,10 @@ const getHtml = require('../service/get-html')
     , cheerio = require('cheerio')
     , Timer = require('../service/timer')
     , sendEmail = require('../service/send-email')
-    , { selectAll, select, insert } = require('../service/mysql')
+    , { originSql, select, insert } = require('../service/mysql')
     , { set } = require('../service/redis')
     ;
-const { AUTH_SERVER, IS_DEBUG } = require('../config');
+const { AUTH_SERVER, IS_DEBUG, SPIDER_SITE } = require('../config');
 
 
 const parseHtmlString = str => {
@@ -34,7 +34,7 @@ const formatContent = ({ title, summary, infoSource, sourceUrl, pubDate }, { con
 
         <div>当前人数：<span>全国 确诊${confirmedCount}，疑似${suspectedCount}，死亡${deadCount}，治愈${curedCount}</span></div>
 
-        <div>数据来源：<a target="_blank" href="https://3g.dxy.cn/newh5/view/pneumonia">丁香园</a></div>
+        <div>数据来源：<a target="_blank" href="${SPIDER_SITE}">丁香园</a></div>
         <div>点此退订：<a target="_blank" href="${unsubscribe}">${unsubscribe}</a></div>
         <div>
             <img src="${dailyPic}" style="width: 100%"/>
@@ -44,14 +44,19 @@ const formatContent = ({ title, summary, infoSource, sourceUrl, pubDate }, { con
 
 
 module.exports = async () => {
+    // 获取数据库最新的100条做缓存
     const news = {};
-    const storedNews = await selectAll('news');
+    const storedNews = await originSql(`
+        select * from news
+        order by newsId desc
+        limit 100
+    `);
     storedNews.map(n => news[n.newsId] = n);
     const interval = IS_DEBUG ? 10 : 1 / 15;
     const timer = new Timer({ apm: interval, ipm: interval, normalCallback: true });
     timer.startListen(async () => {
         try {
-            const resultStr = await getHtml('https://3g.dxy.cn/newh5/view/pneumonia');
+            const resultStr = await getHtml(SPIDER_SITE);
             const result = parseHtmlString(resultStr);
 
             // 更新患者，放入redis，超时时间为检测时间*2
@@ -76,6 +81,7 @@ module.exports = async () => {
                 return item;
             });
             for (let i = 0, len = newItem.length; i < len; i++) { await insert('news', newItem[i]); }
+            newItem.sort((a, b) => b.pubDate - a.pubDate);
 
             // 获取订阅邮箱
             // if (IS_DEBUG) return;

@@ -1,6 +1,6 @@
 const { get } = require('../service/redis');
 
-const wxRobotResponse = (code = 200, data = {}) => ({
+const wxRobotResponse = (code = 200, data = { confirmedCount: 0, suspectedCount: 0, curedCount: 0, deadCount: 0 }) => ({
     err_code: code,
     data_list: [data]
 });
